@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Atomic Canvas Component</title>
+    <style>
+        :root {
+            --bg-paper: #ffffff;
+            --line-ruled: #e2e8f0;    /* Clean, faint slate for lines */
+            --line-margin: #fca5a5;   /* Subtle pink/red for the vertical margin */
+            --ui-border: #e2e8f0;
+            --text-main: #334155;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-user-select: none; /* Prevents text selection callouts while drawing */
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Simulates an atomic note component inside your eventual Split-View app layout */
+        .notecard-container {
+            width: 100%;
+            max-width: 500px; /* Perfect width for iPad Split View sizing */
+            height: 100vh;
+            background: var(--bg-paper);
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid var(--ui-border);
+            border-right: 1px solid var(--ui-border);
+            position: relative;
+        }
+
+        /* Minimalist, compact header tool strip */
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            background: #ffffff;
+            border-bottom: 1px solid var(--ui-border);
+            z-index: 10;
+        }
+
+        .color-palette {
+            display: flex;
+            gap: 14px;
+        }
+
+        .color-swatch {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.1s ease;
+        }
+
+        .color-swatch.active {
+            transform: scale(1.25);
+            border-color: #94a3b8;
+        }
+
+        .btn-clear {
+            background: none;
+            border: 1px solid #cbd5e1;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--text-main);
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .btn-clear:active {
+            background: #f1f5f9;
+        }
+
+        /* The Lined Paper Engine */
+        .canvas-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background-color: var(--bg-paper);
+            /* Generates clean horizontal rules exactly 28px apart */
+            background-image: linear-gradient(var(--line-ruled) 1px, transparent 1px);
+            background-size: 100% 28px;
+            background-position: 0 6px;
+        }
+
+        /* Classic vertical notebook margin line */
+        .canvas-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 44px;
+            width: 1px;
+            height: 100%;
+            background-color: var(--line-margin);
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* Critical settings for Apple Pencil functionality */
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Disables browser panning, pinch-to-zoom, and accidental swipe-to-navigate patterns */
+            touch-action: none; 
+            background: transparent;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="notecard-container">
+        <div class="toolbar">
+            <div class="color-palette">
+                <div class="color-swatch active" style="background-color: #1e293b;" data-color="#1e293b"></div> <!-- Slate Black -->
+                <div class="color-swatch" style="background-color: #2563eb;" data-color="#2563eb"></div> <!-- Pen Blue -->
+                <div class="color-swatch" style="background-color: #dc2626;" data-color="#dc2626"></div> <!-- Editorial Red -->
+                <div class="color-swatch" style="background-color: #16a34a;" data-color="#16a34a"></div> <!-- Deep Green -->
+            </div>
+            <button class="btn-clear" id="clearBtn">Clear Card</button>
+        </div>
+
+        <div class="canvas-wrapper">
+            <canvas id="noteCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('noteCanvas');
+        const ctx = canvas.getContext('2d');
+        const clearBtn = document.getElementById('clearBtn');
+        const swatches = document.querySelectorAll('.color-swatch');
+
+        let isDrawing = false;
+        let currentColor = '#1e293b';
+        const baseWidth = 2.0; // Base brush thickness scale
+
+        // Initialize or adjust internal canvas resolution to account for Retina displays
+        function setupCanvasDimensions() {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            
+            // Match structural drawing resolution to physical screen hardware pixels
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            
+            // Normalize internal coordinates back to CSS tracking size
+            ctx.scale(dpr, dpr);
+            
+            // Configure premium ink aesthetics
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+        }
+
+        function getCanvasCoordinates(event) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top
+            };
+        }
+
+        // --- Drawing Engine Lifecycle ---
+
+        function handlePointerDown(e) {
+            // Guard: ensure only primary touch inputs or stylus tips initialize drawings
+            if (e.button !== 0 && e.pointerType === 'mouse') return;
+            
+            isDrawing = true;
+            const coords = getCanvasCoordinates(e);
+            
+            ctx.beginPath();
+            ctx.moveTo(coords.x, coords.y);
+            
+            applyDynamicStyling(e);
+        }
+
+        function handlePointerMove(e) {
+            if (!isDrawing) return;
+            e.preventDefault(); // Defensively stops Safari's pull-to-refresh mechanics
+            
+            const coords = getCanvasCoordinates(e);
+            ctx.lineTo(coords.x, coords.y);
+            
+            applyDynamicStyling(e);
+            
+            ctx.stroke();
+            
+            // Break the path segment and re-anchor it instantly. 
+            // This is required to render changing pressure variations smoothly along a single line.
+            ctx.beginPath();
+            ctx.moveTo(coords.x, coords.y);
+        }
+
+        function handlePointerUp() {
+            isDrawing = false;
+        }
+
+        function applyDynamicStyling(e) {
+            ctx.strokeStyle = currentColor;
+            
+            // Extract pressure properties. Real styluses provide accurate arrays (0.0 to 1.0).
+            // Default to 0.5 if it's a standard resistive stylus or finger touch.
+            let physicalPressure = (e.pointerType === 'pen' && e.pressure > 0) ? e.pressure : 0.5;
+            
+            // Dynamic brush algorithm: guarantees lines don't completely vanish when writing softly
+            ctx.lineWidth = baseWidth * (physicalPressure * 2.5);
+        }
+
+        // --- Event Binding ---
+
+        canvas.addEventListener('pointerdown', handlePointerDown);
+        canvas.addEventListener('pointermove', handlePointerMove);
+        canvas.addEventListener('pointerup', handlePointerUp);
+        canvas.addEventListener('pointercancel', handlePointerUp);
+
+        // Color switching logic
+        swatches.forEach(swatch => {
+            swatch.addEventListener('click', (e) => {
+                document.querySelector('.color-swatch.active').classList.remove('active');
+                e.target.classList.add('active');
+                currentColor = e.target.getAttribute('data-color');
+            });
+        });
+
+        // Clear canvas functionality
+        clearBtn.addEventListener('click', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+        // Initialize structural dimensions on launch and handle screen rotation or Split View shifts
+        window.addEventListener('load', setupCanvasDimensions);
+        window.addEventListener('resize', setupCanvasDimensions);
+    </script>
+</body>
+</html>
