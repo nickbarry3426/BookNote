@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>BookNotes Pro</title>
+    <style>
+        :root {
+            --bg-app: #f8fafc;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --border-color: #e2e8f0;
+            --line-ruled: #e2e8f0;
+            --line-margin: #fee2e2;
+            --accent-color: #2563eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-app);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* --- TOP SECTION: HORIZONTAL LIBRARY SHELF --- */
+        .library-shelf-container {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .shelf-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .shelf-title {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .btn-action {
+            background: none;
+            border: 1px solid var(--border-color);
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--text-main);
+        }
+
+        .btn-action:active {
+            background-color: #f1f5f9;
+        }
+
+        .shelf-row {
+            display: flex;
+            gap: 16px;
+            overflow-x: auto;
+            padding: 4px 0 8px 0;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .book-cover-item {
+            width: 80px;
+            height: 110px;
+            background-color: #e2e8f0;
+            border-radius: 6px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            position: relative;
+            border: 2px solid transparent;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .book-cover-item.active {
+            border-color: var(--accent-color);
+            transform: scale(1.02);
+        }
+
+        .book-cover-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+
+        .book-cover-placeholder {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+        }
+
+        /* --- METADATA EDITOR BLOCK --- */
+        .book-meta-panel {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border-color);
+            padding: 12px 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .meta-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .meta-field label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .meta-field input, .meta-field select {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 6px;
+            font-size: 13px;
+            color: var(--text-main);
+            background: #fff;
+        }
+
+        .star-rating {
+            display: flex;
+            gap: 4px;
+            font-size: 18px;
+            cursor: pointer;
+            color: #cbd5e1;
+            margin-top: 4px;
+        }
+
+        .star-rating .star.filled {
+            color: #f59e0b;
+        }
+
+        /* --- CORE SPLIT-VIEW WORKSPACE --- */
+        .workspace {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            position: relative;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .ink-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            background: #fff;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 20;
+        }
+
+        .color-selectors {
+            display: flex;
+            gap: 12px;
+        }
+
+        .color-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+
+        .color-dot.active {
+            transform: scale(1.2);
+            border-color: #94a3b8;
+        }
+
+        /* --- ATOMIC NOTECARD ROW ARCHITECTURE --- */
+        .notecard-row {
+            display: flex;
+            width: 100%;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--bg-card);
+            position: relative;
+        }
+
+        /* Narrow Left Action Strip */
+        .gutter-left {
+            width: 44px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 12px;
+            background-color: #f8fafc;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .btn-add-divider {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 1px solid var(--border-color);
+            background: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            color: var(--text-muted);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .btn-add-divider:active {
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        /* Center Handwriting Area */
+        .canvas-container {
+            flex: 1;
+            height: 180px; /* Modular compact size ideal for single thoughts/quotes */
+            position: relative;
+            background-color: #fff;
+            background-image: linear-gradient(var(--line-ruled) 1px, transparent 1px);
+            background-size: 100% 26px;
+            background-position: 0 10px;
+        }
+
+        .canvas-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 10px;
+            width: 1px;
+            height: 100%;
+            background-color: var(--line-margin);
+            pointer-events: none;
+        }
+
+        .chapter-badge {
+            position: absolute;
+            top: 6px;
+            right: 12px;
+            z-index: 5;
+        }
+
+        .chapter-badge input {
+            border: none;
+            background: rgba(241, 245, 249, 0.8);
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            width: 50px;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            background: transparent;
+        }
+
+        /* Narrow Right Action Strip */
+        .gutter-right {
+            width: 44px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 12px;
+            background-color: #f8fafc;
+            border-left: 1px solid var(--border-color);
+        }
+
+        .btn-ribbon {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            opacity: 0.4;
+            transition: opacity 0.2s;
+        }
+
+        .btn-ribbon.tagged {
+            opacity: 1;
+            filter: drop-shadow(0 1px 1px rgba(0,0,0,0.1));
+        }
+
+        /* --- OVERLAY MANAGEMENT DRAWERS --- */
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.3);
+            z-index: 100;
+            display: none;
+            justify-content: flex-end;
+        }
+
+        .drawer {
+            width: 85%;
+            max-width: 340px;
+            height: 100%;
+            background: #fff;
+            box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            animation: slideIn 0.25s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+
+        .drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .folder-tree {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .folder-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .folder-option:active {
+            background-color: #f1f5f9;
+        }
+
+        .folder-option input {
+            width: 16px;
+            height: 16px;
+        }
+
+        .hidden-file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- LIBRARY ROW SCREEN -->
+    <div class="library-shelf-container">
+        <div class="shelf-header">
+            <span class="shelf-title">BookNote Library</span>
+            <div style="display:flex; gap:8px;">
+                <button class="btn-action" onclick="triggerCoverUpload()">Upload Cover PNG</button>
+                <button class="btn-action" onclick="createNewBook()" style="background-color: var(--accent-color); color:white; border:none;">+ New Book</button>
+            </div>
+        </div>
+        <div class="shelf-row" id="shelfRow">
+            <!-- Dynamic Books render here -->
+        </div>
+    </div>
+
+    <!-- METADATA SUB-PANEL -->
+    <div class="book-meta-panel">
+        <div class="meta-field">
+            <label>Author Name</label>
+            <input type="text" id="metaAuthor" placeholder="e.g. David Epstein" oninput="saveCurrentBookMeta()">
+        </div>
+        <div class="meta-field">
+            <label>Genre / Category</label>
+            <select id="metaGenre" onchange="saveCurrentBookMeta()">
+                <!-- Dynamic Custom Genres -->
+            </select>
+        </div>
+        <div class="meta-field">
+            <label>Your Rating</label>
+            <div class="star-rating" id="starRating">
+                <span class="star" data-value="1">★</span>
+                <span class="star" data-value="2">★</span>
+                <span class="star" data-value="3">★</span>
+                <span class="star" data-value="4">★</span>
+                <span class="star" data-value="5">★</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN INTERACTIVE CANVAS STREAM -->
+    <div class="ink-toolbar">
+        <div class="color-selectors">
+            <div class="color-dot active" style="background-color: #0f172a;" data-color="#0f172a"></div>
+            <div class="color-dot" style="background-color: #2563eb;" data-color="#2563eb"></div>
+            <div class="color-dot" style="background-color: #dc2626;" data-color="#dc2626"></div>
+            <div class="color-dot" style="background-color: #16a34a;" data-color="#16a34a"></div>
+        </div>
+        <span style="font-size: 11px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Note Slices Container</span>
+        <button class="btn-action" id="manageGenresBtn">Edit Genres</button>
+    </div>
+
+    <div class="workspace" id="canvasWorkspace">
+        <!-- Dynamic Canvas Note Card Slices render here -->
+    </div>
+
+    <!-- THE RELATIONAL FILING DRAWER -->
+    <div class="drawer-overlay" id="folderDrawerOverlay" onclick="closeFolderDrawer()">
+        <div class="drawer" onclick="event.stopPropagation()">
+            <div class="drawer-header">
+                <h3 style="font-size:16px;">Route Notecard to Files</h3>
+                <button class="btn-action" onclick="closeFolderDrawer()">Done</button>
+            </div>
+            <div style="margin-bottom: 14px; display:flex; gap:6px;">
+                <input type="text" id="newFolderInput" placeholder="New structural folder path..." style="flex:1; padding:6px; border:1px solid var(--border-color); border-radius:6px; font-size:12px;">
+                <button class="btn-action" onclick="addNewFolder()">Add</button>
+            </div>
+            <div class="folder-tree" id="folderTreeContainer">
+                <!-- Folders and Subfolders checklist maps here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ASSET LOADING CHANNELS -->
+    <input type="file" id="coverImageInput" class="hidden-file-input" accept="image/png" onchange="handleCoverUpload(event)">
+
+    <script>
+        // --- RELATIONAL APPLICATION STATE ENGINE ---
+        let state = {
+            books: {},
+            cards: [],
+            folders: ["Personal/Daily Habits", "Professional/Forecasting", "General Anecdotes"],
+            genres: ["Psychology", "Business", "Economics", "Science", "Unassigned"],
+            currentBookId: null,
+            activeCardIdForTagging: null,
+            activeColor: '#0f172a'
+        };
+
+        // --- HARDWARE STYLUS ENGINE CACHE ---
+        let activeCanvasContexts = {}; 
+        let isDrawing = false;
+
+        // Load complete app database profile from local execution environment on bootstrap
+        function initLocalStorageDatabase() {
+            const savedState = localStorage.getItem('booknotes_pro_db');
+            if (savedState) {
+                try {
+                    const parsed = JSON.parse(savedState);
+                    if(parsed.books) state.books = parsed.books;
+                    if(parsed.cards) state.cards = parsed.cards;
+                    if(parsed.folders) state.folders = parsed.folders;
+                    if(parsed.genres) state.genres = parsed.genres;
+                } catch(e) { console.error("Database parsing failure reset.", e); }
+            }
+
+            // Fallback generation if data structures are entirely fresh
+            if (Object.keys(state.books).length === 0) {
+                const sampleId = "book_" + Date.now();
+                state.books[sampleId] = {
+                    id: sampleId,
+                    title: "Range",
+                    author: "David Epstein",
+                    rating: 5,
+                    genre: "Psychology",
+                    coverPng: null,
+                    lastEdited: new Date().toISOString()
+                };
+                state.currentBookId = sampleId;
+                
+                // Add absolute baseline placeholder note cards to book canvas
+                state.cards.push({ id: "card_" + Date.now() + "_1", bookId: sampleId, chapter: "4", inkData: null, folders: ["Personal/Daily Habits"] });
+                state.cards.push({ id: "card_" + Date.now() + "_2", bookId: sampleId, chapter: "5", inkData: null, folders: [] });
+            } else {
+                // Auto route layout engine focus to most recently compiled artifact
+                const sorted = Object.values(state.books).sort((a,b) => new Date(b.lastEdited) - new Date(a.lastEdited));
+                state.currentBookId = sorted[0].id;
+            }
+            saveStateToDisk();
+            renderApplicationShell();
+        }
+
+        function saveStateToDisk() {
+            localStorage.setItem('booknotes_pro_db', JSON.stringify(state));
+        }
+
+        // --- RENDER DOM ORCHESTRATION PIPELINES ---
+        function renderApplicationShell() {
+            renderLibraryShelf();
+            renderActiveBookMetadata();
+            renderActiveNoteCardWorkspace();
+        }
+
+        function renderLibraryShelf() {
+            const shelfRow = document.getElementById('shelfRow');
+            shelfRow.innerHTML = '';
+            
+            // Sort array strictly by last modified ruleset (Leftmost layout priority)
+            const sortedBooks = Object.values(state.books).sort((a,b) => new Date(b.lastEdited) - new Date(a.lastEdited));
+            
+            sortedBooks.forEach(book => {
+                const item = document.createElement('div');
+                item.className = `book-cover-item ${book.id === state.currentBookId ? 'active' : ''}`;
+                item.onclick = () => { selectActiveBook(book.id); };
+                
+                if (book.coverPng) {
+                    const img = document.createElement('img');
+                    img.src = book.coverPng;
+                    img.alt = book.title;
+                    item.appendChild(img);
+                } else {
+                    const placeholder = document.createElement('div');
+                    placeholder.className = 'book-cover-placeholder';
+                    placeholder.innerText = book.title;
+                    item.appendChild(placeholder);
+                }
+                shelfRow.appendChild(item);
+            });
+        }
+
+        function renderActiveBookMetadata() {
+            const book = state.books[state.currentBookId];
+            if(!book) return;
+
+            document.getElementById('metaAuthor').value = book.author || '';
+            
+            const genreSelect = document.getElementById('metaGenre');
+            genreSelect.innerHTML = '';
+            state.genres.forEach(g => {
+                const opt = document.createElement('option');
+                opt.value = g;
+                opt.innerText = g;
+                if(book.genre === g) opt.selected = true;
+                genreSelect.appendChild(opt);
+            });
+
+            // Update physical rating elements
+            const stars = document.querySelectorAll('#starRating .star');
+            stars.forEach(star => {
+                const val = parseInt(star.getAttribute('data-value'));
+                if(val <= (book.rating || 0)) {
+                    star.classList.add('filled');
+                } else {
+                    star.classList.remove('filled');
+                }
+                star.onclick = () => {
+                    book.rating = val;
+                    book.lastEdited = new Date().toISOString();
+                    saveStateToDisk();
+                    renderLibraryShelf();
+                    renderActiveBookMetadata();
+                };
+            });
+        }
+
+        function renderActiveNoteCardWorkspace() {
+            const workspace = document.getElementById('canvasWorkspace');
+            workspace.innerHTML = '';
+            activeCanvasContexts = {};
+
+            // Isolate active book note arrays
+            const activeCards = state.cards.filter(c => c.bookId === state.currentBookId);
+
+            activeCards.forEach((card, index) => {
+                const row = document.createElement('div');
+                row.className = 'notecard-row';
+                row.dataset.cardId = card.id;
+
+                // Left Gutter: In-line mid-stack slice split trigger mechanics
+                const leftGutter = document.createElement('div');
+                leftGutter.className = 'gutter-left';
+                const addBtn = document.createElement('button');
+                addBtn.className = 'btn-add-divider';
+                addBtn.innerText = '+';
+                addBtn.title = "Insert new note card split right here";
+                addBtn.onclick = () => { insertNoteCardSliceImmediatelyBelow(card.id); };
+                leftGutter.appendChild(addBtn);
+
+                // Center Gutter: Handwriting Engine Node
+                const canvasContainer = document.createElement('div');
+                canvasContainer.className = 'canvas-container';
+                
+                const chapterBadge = document.createElement('div');
+                chapterBadge.className = 'chapter-badge';
+                const chInput = document.createElement('input');
+                chInput.type = 'text';
+                chInput.placeholder = 'Ch. Num';
+                chInput.value = card.chapter || '';
+                chInput.oninput = (e) => { card.chapter = e.target.value; saveStateToDisk(); };
+                chapterBadge.appendChild(chInput);
+                canvasContainer.appendChild(chapterBadge);
+
+                const canvasElement = document.createElement('canvas');
+                canvasElement.id = `canvas_${card.id}`;
+                canvasContainer.appendChild(canvasElement);
+
+                // Right Gutter: Relational Ribbon assignment module
+                const rightGutter = document.createElement('div');
+                rightGutter.className = 'gutter-right';
+                const ribbonBtn = document.createElement('button');
+                ribbonBtn.className = `btn-ribbon ${card.folders && card.folders.length > 0 ? 'tagged' : ''}`;
+                ribbonBtn.innerText = '🔖';
+                ribbonBtn.onclick = () => { openFolderDrawer(card.id); };
+                rightGutter.appendChild(ribbonBtn);
+
+                row.appendChild(leftGutter);
+                row.appendChild(canvasContainer);
+                row.appendChild(rightGutter);
+                workspace.appendChild(row);
+
+                // Initialize internal vector array processing layers on next event tick
+                setTimeout(() => { initializeStylusHardwareContext(canvasElement, card); }, 0);
+            });
+        }
+
+        // --- HARDWARE STYLUS INTERACTION SUITE ---
+        function initializeStylusHardwareContext(canvas, cardObject) {
+            const ctx = canvas.getContext('2d');
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+
+            activeCanvasContexts[cardObject.id] = ctx;
+
+            // If an encoded binary compression layer string is found, instantiate state
+            if(cardObject.inkData) {
+                const img = new Image();
+                img.src = cardObject.inkData;
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, rect.width, rect.height);
+                };
+            }
+
+            // Standardize Pointer Coordinate Tracking calculations 
+            function fetchCoordinates(e) {
+                const cRect = canvas.getBoundingClientRect();
+                return { x: e.clientX - cRect.left, y: e.clientY - cRect.top };
+            }
+
+            canvas.addEventListener('pointerdown', (e) => {
+                isDrawing = true;
+                const pt = fetchCoordinates(e);
+                ctx.beginPath();
+                ctx.moveTo(pt.x, pt.y);
+                updateInkDynamics(ctx, e);
+            });
+
+            canvas.addEventListener('pointermove', (e) => {
+                if(!isDrawing) return;
+                e.preventDefault();
+
+                const pt = fetchCoordinates(e);
+                ctx.lineTo(pt.x, pt.y);
+                updateInkDynamics(ctx, e);
+                ctx.stroke();
+
+                // Segment line sequence links back down into distinct frame slices
+                ctx.beginPath();
+                ctx.moveTo(pt.x, pt.y);
+            });
+
+            const finalizeStrokeAction = () => {
+                if(!isDrawing) return;
+                isDrawing = false;
+                
+                // Compress internal viewport data matrices to permanent backup string
+                cardObject.inkData = canvas.toDataURL();
+                state.books[state.currentBookId].lastEdited = new Date().toISOString();
+                saveStateToDisk();
+                renderLibraryShelf();
+            };
+
+            canvas.addEventListener('pointerup', finalizeStrokeAction);
+            canvas.addEventListener('pointercancel', finalizeStrokeAction);
+        }
+
+        function updateInkDynamics(context, event) {
+            context.strokeStyle = state.activeColor;
+            let pressure = (event.pointerType === 'pen' && event.pressure > 0) ? event.pressure : 0.5;
+            context.lineWidth = 2.0 * (pressure * 2.5); // Normalization multiplier maps pressure accurately
+        }
+
+        // --- RELATIONAL ROUTING CONTROLS ---
+        function openFolderDrawer(cardId) {
+            state.activeCardIdForTagging = cardId;
+            const overlay = document.getElementById('folderDrawerOverlay');
+            const container = document.getElementById('folderTreeContainer');
+            container.innerHTML = '';
+
+            const card = state.cards.find(c => c.id === cardId);
+            if(!card) return;
+
+            state.folders.forEach(path => {
+                const row = document.createElement('div');
+                row.className = 'folder-option';
+                
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = card.folders && card.folders.includes(path);
+                cb.onchange = (e) => {
+                    if(!card.folders) card.folders = [];
+                    if(e.target.checked) {
+                        if(!card.folders.includes(path)) card.folders.push(path);
+                    } else {
+                        card.folders = card.folders.filter(f => f !== path);
+                    }
+                    saveStateToDisk();
+                    
+                    // Instant dynamic validation badge feedback updating
+                    const targetRow = document.querySelector(`.notecard-row[data-cardId="${cardId}"] .btn-ribbon`);
+                    if(targetRow) {
+                        if(card.folders.length > 0) targetRow.classList.add('tagged');
+                        else targetRow.classList.remove('tagged');
+                    }
+                };
+
+                const label = document.createElement('span');
+                label.innerText = path;
+
+                row.appendChild(cb);
+                row.appendChild(label);
+                container.appendChild(row);
+            });
+
+            overlay.style.display = 'flex';
+        }
+
+        function closeFolderDrawer() {
+            document.getElementById('folderDrawerOverlay').style.display = 'none';
+            state.activeCardIdForTagging = null;
+        }
+
+        function addNewFolder() {
+            const input = document.getElementById('newFolderInput');
+            const val = input.value.trim();
+            if(val && !state.folders.includes(val)) {
+                state.folders.push(val);
+                saveStateToDisk();
+                input.value = '';
+                if(state.activeCardIdForTagging) openFolderDrawer(state.activeCardIdForTagging);
+            }
+        }
+
+        // --- BOOK OPERATIONS INTERFACES ---
+        function createNewBook() {
+            const title = prompt("Enter new notebook title details:");
+            if(!title) return;
+            
+            const id = "book_" + Date.now();
+            state.books[id] = {
+                id: id,
+                title: title,
+                author: "",
+                rating: 0,
+                genre: "Unassigned",
+                coverPng: null,
+                lastEdited: new Date().toISOString()
+            };
+            
+            // Core paradigm rule enforcement: seed fresh book workspace with initial note slice automatically
+            state.cards.push({
+                id: "card_" + Date.now(),
+                bookId: id,
+                chapter: "",
+                inkData: null,
+                folders: []
+            });
+
+            state.currentBookId = id;
+            saveStateToDisk();
+            renderApplicationShell();
+        }
+
+        function selectActiveBook(bookId) {
+            state.currentBookId = bookId;
+            saveStateToDisk();
+            renderApplicationShell();
+        }
+
+        function insertNoteCardSliceImmediatelyBelow(currentCardId) {
+            const targetIndex = state.cards.findIndex(c => c.id === currentCardId);
+            if(targetIndex === -1) return;
+
+            const newCard = {
+                id: "card_" + Date.now(),
+                bookId: state.currentBookId,
+                chapter: state.cards[targetIndex].chapter || "", // Inherit current chapter context automatically
+                inkData: null,
+                folders: []
+            };
+
+            // Splice target row instantly into precise relative location index position
+            state.cards.splice(targetIndex + 1, 0, newCard);
+            state.books[state.currentBookId].lastEdited = new Date().toISOString();
+            
+            saveStateToDisk();
+            renderApplicationShell();
+        }
+
+        function saveCurrentBookMeta() {
+            const book = state.books[state.currentBookId];
+            if(!book) return;
+
+            book.author = document.getElementById('metaAuthor').value;
+            book.genre = document.getElementById('metaGenre').value;
+            book.lastEdited = new Date().toISOString();
+            saveStateToDisk();
+        }
+
+        // --- BOOK COVER IMAGE BASE64 TRANSLATION LABS ---
+        function triggerCoverUpload() {
+            document.getElementById('coverImageInput').click();
+        }
+
+        function handleCoverUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Str = e.target.result;
+                if(state.books[state.currentBookId]) {
+                    state.books[state.currentBookId].coverPng = base64Str;
+                    state.books[state.currentBookId].lastEdited = new Date().toISOString();
+                    saveStateToDisk();
+                    renderLibraryShelf();
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- GLOBAL COLOR PALETTE BINDINGS ---
+        document.querySelectorAll('.color-dot').forEach(dot => {
+            dot.addEventListener('click', (e) => {
+                document.querySelector('.color-dot.active').classList.remove('active');
+                e.target.classList.add('active');
+                state.activeColor = e.target.getAttribute('data-color');
+            });
+        });
+
+        // Genre custom array manager adjustments panel option
+        document.getElementById('manageGenresBtn').addEventListener('click', () => {
+            const val = prompt("Create new custom text categorization filter genre item:", "");
+            if(val && !state.genres.includes(val)) {
+                state.genres.push(val);
+                saveStateToDisk();
+                renderActiveBookMetadata();
+            }
+        });
+
+        // Initialize engine lifecycle
+        window.addEventListener('DOMContentLoaded', initLocalStorageDatabase);
+    </script>
+</body>
+</html>
